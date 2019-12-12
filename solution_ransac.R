@@ -45,7 +45,11 @@ which_min_error <- function(error_inlier_list){
   which.min(unlist_error)
 }
 
-
+numb_of_iterations <- function(n_obs, inlier_fraction, success_prob) {
+  as.integer(
+    log(1 - success_prob) / log(1 - inlier_fraction ^ n_obs)
+  )
+}
 
 check_ransaclm_inputs <- function(formula, data, error_threshold,
                                   inlier_threshold, iterations,
@@ -54,14 +58,36 @@ check_ransaclm_inputs <- function(formula, data, error_threshold,
   checkmate::assert_data_frame(data)
   checkmate::assert_number(error_threshold)
   checkmate::assert_count(inlier_threshold)
-  checkmate::assert_number(iterations, lower = 1)
+  checkmate::assert_count(iterations)
   checkmate::assert_count(cores, null.ok = TRUE)
   checkmate::assert_number(seed, null.ok = TRUE)
+  
+  
+  formula_variables <- all.vars(formula)
+  
+  formula_dot_ex <- formula_variables[2] == "."
+  
+  numb_of_variables <- length(formula_variables)
+  
+  col_names <- names(data)
+  
+  variables_exists <- is.element(
+    formula_variables,
+    col_names
+  )
+  
+  if (!all(variables_exists) && !formula_dot_ex) {
+    stop("At least one variable, used in formula, is not in your data!")
+  }
+  
+  
+  
 }
 
 # ransaclm----------------------------------------------------------------------
 ransaclm <- function(formula, data, error_threshold, inlier_threshold,
-                     iterations = nrow(data) / 3, cores = NULL, seed = NULL) {
+                     iterations = floor(nrow(data) / 3), 
+                     cores = NULL, seed = NULL) {
   check_ransaclm_inputs(
     formula, data, error_threshold,
     inlier_threshold, iterations, cores, seed
@@ -116,26 +142,22 @@ ransaclm <- function(formula, data, error_threshold, inlier_threshold,
 }
 
 
-# Rumprobieren
-x1 <- rnorm(100)
-x2 <- rnorm(100)
-eps <- rnorm(100, sd = 0.2)
-
-y <- x1 + x2 + eps
-
-df <- data.frame(y, x1, x2)
+# load ransac-utils.R-----------------------------------------------------------
+source("ransac-utils.R")
 
 
-formular <- y ~ .
-lm <- lm(formular, data = df)
+# ransac-example----------------------------------------------------------------
+set.seed(1874374111)
+data_simple <- make_ransac_data(n_obs = 100, n_coef = 1, inlier_fraction = 0.7)
 
-summary(lm)
+# univariate example:
+ransac_simple <- ransaclm(y ~ . - inlier,
+                          data = data_simple, error_threshold = 2,
+                          inlier_threshold = 50, seed = 20171111
+)
+validate_ransac(ransac_simple)
 
-lm$effects
 
-summary_lm <- summary(lm)
 
-summary_lm
-lm
 
-?lm
+
